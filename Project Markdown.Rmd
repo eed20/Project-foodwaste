@@ -1,0 +1,223 @@
+---
+
+Title: "Recycling Group Project"   
+Authors: "Team 25"   
+Output: html_document  
+Wordcount: "2323 words"   
+
+---
+
+# Introduction
+
+Household waste has been highlighted as a source of climate change and environmental degradation, and since the early 2000s the UK government has pledged to increase recycling to reduce waste. In 2008, under the waste framework directive the UK agreed to reach the EU target of recycling 50% of household waste by 2020 (Defra, 2020). As such, we are interested in investigating if the recent emphasis on recycling has impacted the level of waste across the UK. In addition, aside from governmental recycling guidelines, other factors including education and income could affect the level of waste. With a greater recent global focus on the study of environmental concerns, it may be considered that individuals who obtain qualifications are more likely to understand and study the environmental consequences of waste and seek to reduce this. In addition, examining how disposable income affects waste may be of interest as this may be related to education. While individuals with qualifications may be more environmentally aware, they may also earn further income and waste more as a result of being able to consume a larger amount of goods. Thus, this relationship is also of interest and this study will consider the impact of recycling, obtaining qualifications and income on waste using a timeframe from 2004 to 2015 and considering UK regional data. 
+
+# Methods and data
+
+### Data Overview
+
+The data employed for the analysis is sourced from the ONS and the UK government website and is panel data, grouped regionally and yearly across an 11-year period from 2004 to 2015. As not all data is available split by region, this limits the choice of additional independent and instrumental variables that we could include, however the split allows for a more thorough examination of the variables studied. One of the issues presented within the data is whether to include per capita data or not and this is mentioned in the next section.  
+
+### Methodology
+
+The model for recycling will be fitted using the following form: 
+$$Y_i=\beta_1RECYCLING_i + \beta_2 INCOME_i + \beta_3 EDU_i + \beta_4 X_i + \epsilon_i$$
+Where $Y_i$ is the yearly household regional waste data as the dependent variable for this model, and $X_i$ is the various control variables, such as the year and region. $RECYCLING_i$ is the total household recycling data and is measured in absolute values (converted to per capita where necessary), $INCOME_i$ is the income of the population and is measured likewise, and $EDU_i$ is the amount of people holding a qualification starting at GCSE level and above. The education data employed is gathered through the annual survey conducted by the UK government. The analysis is performed using per capita data; however, the population figures could also be used as control variables. As there are key differences between the two methods since population as a control variable wouldn’t scale all independent variables in an OLS model, not to mention the entire relationship could change depending on the values involved, it can be effective to analyse for both, with a focus on per capita data. As we are working with panel data, a twoway fixed effect regression is used, fixing both time (in years) and UK region to ensure accuracy in our conclusion.    
+
+It is also important to note that as we are accounting only for household data, this will not reflect any non-household and business waste. Therefore, we can use indicators such as income and education with a better certainty of significance, as non-household waste and recycling will probably involve different international and national business policies, causing a highly exogenous and large error term, in turn making the data overall less reliable. 
+
+
+
+# Results
+
+### Visualization: Waste against Recycling
+```{r plot1, warning=FALSE, echo=FALSE, message=FALSE}
+#Relationship between Waste and Recycling
+library(ggplot2)
+library(RColorBrewer)
+library(magrittr)
+library(readxl)
+Education = read_excel("DATA/Education.xlsx")
+# Ref: https://5harad.com/mse125/r/visualization_code.html
+addUnits <- function(n) {
+  labels <- ifelse(n < 1000, n,  # less than thousands
+                   ifelse(n < 1e6, paste0(round(n/1e3), 'k'),  # in thousands
+                          ifelse(n < 1e9, paste0(round(n/1e6), 'M'),  # in millions
+                                 ifelse(n < 1e12, paste0(round(n/1e9), 'B'), # in billions
+                                        ifelse(n < 1e15, paste0(round(n/1e12), 'T'), # in trillions
+                                               'too big!'
+                                        )))))
+  return(labels)
+}
+
+
+ggplot(Education, aes(x=Recycling,y=Waste,colour=Region,group=Region)) + 
+  geom_point() + geom_smooth(method = lm, formula= y~x, se=FALSE, colour = "Darkred") + theme_minimal() + theme_bw() + 
+  theme(panel.border = element_blank(), panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line =   element_line(colour = "black")) + 
+  expand_limits(x = c(0, NA), y = c(0, NA)) + scale_y_continuous(labels = addUnits) + scale_x_continuous(labels = addUnits) +
+  xlab("Recycling") + ylab("Waste") + ggtitle("  Relationship between Household Waste and Recycling")
+
+
+```
+    
+The graph depicts a clear negative linear relationship between Household Recycling and Waste. This is in accordance with the prediction, and the position on the graph is dependent upon the population of the different regions.
+```{r, warning=FALSE, echo=FALSE, message=FALSE}
+library(plm)
+library(magrittr)
+library(dplyr)
+library(stargazer)
+Data = Education %>% mutate(RecyclingPc = Recycling/Population, WastePc= Waste/Population)
+Waste_Within1<- plm(WastePc ~ RecyclingPc+factor(Region) + factor(Year), index= c("Region", "Year"), model = "within", effect = "twoways", data=Data)
+stargazer(Waste_Within1,type="text")
+```
+
+The regression results show that each additional ton of recycling per capita in a certain region will result in a 1.296 tons reduction in waste per capita. 
+
+
+#### Some possible confounding factors:
+ This result may be affected by many confounding factors, which may bias the result upward or downward. For example, income could be an important driver of both waste and recycling, acting as a confounding factor. Income may play a key role in the evolution of waste, with rising disposable income increasing the propensity to consume and generating more waste, thus introducing a positive relationship between waste and income. Alternatively, there may be a negative relationship between income level and waste with higher income individuals having pro-environment attitudes as a result of being able to afford to spend more attention on their environmental impact. In addition, income may be positively linked to recycling. Justifications are related to purchasing patterns: higher income individuals can purchase goods with a higher recyclable content which may be more expensive. The figure below illustrates potential spurious relations between income and waste leading to an upward or downward bias. 
+ 
+ [![waste1](DATA/income.png)]
+
+To test our hypothesis, we can draw the graph to further explore their correlation, we start by looking at a scatter plot of waste per capita on the income per capita.  
+
+```{r, warning=FALSE, echo=FALSE, message=FALSE}
+library(readxl)
+library(RColorBrewer)
+library(ggplot2)
+library(dplyr)
+Data <- read_xlsx("DATA/Education.xlsx")
+Data = Data %>% mutate(RecyclingPc = Recycling/Population, WastePc= Waste/Population)
+ggplot(Data,aes(x=IncomePc,y=WastePc))+geom_point(colour="Darkgrey")+geom_smooth(method = lm, se=FALSE,colour="Darkred")+theme_minimal()+theme_bw()+theme(panel.border = element_blank(), panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+ylab("WastePc")+ggtitle("Relationship between WastePc and IncomePc")
+```
+
+Based on the scatter plot, we can see that there is a weak relationship between the two variables. Income per capita is negatively correlated with waste per capita but only weakly. This observation is consistent with our expectation; income is negatively correlated with waste due to the pro-environment attitudes of people with higher incomes, which could imply a downward bias in the estimate of the coefficient on waste variable. However, it is also noticeable that the linear relationship between waste and income is relatively weak, thus indicates the endogeneity of the income on the previous univariate regression may not live up to our expectation. Hence, we need to further justify the endogeneity of income on the waste to test the validity of our hypothesis. 
+
+Next, we also explore the correlation between income and waste in separate region by drawing the regional relationship graph: 
+
+```{r, warning=FALSE, echo=FALSE, message=FALSE}
+ggplot(Data, aes(x=Income, y=Waste,color=Region)) + geom_point() +geom_smooth(method='lm',se=FALSE)+theme_minimal()
+```
+
+According to the graph, we can observe that there exists income inequalities amongst the different regions in UK. South East and London have the highest income level and also the largest degree of waste, while the North East has lowest income and waste level. From the perspective of each region, there is also an overall negative relationship between income and waste, which suggests the degree of waste per region will decrease for every additional increase in income level of each region. Therefore, income in each region has a negative effect on the local waste level, leading to a downward bias.  
+
+To further investigate the relationship between income and waste for this panel data, firstly we fix the year to see its effect within the model.  
+
+```{r, warning=FALSE, echo=FALSE, message=FALSE}
+library(plm)
+library(stargazer)
+Reg1 <- plm(WastePc~RecyclingPc+log(IncomePc),data = Data,model = "within",effect = 'time' )
+stargazer(Reg1,type="text",digits=10)
+```
+
+
+After performing the regression, we find that there is a significant negative relationship between income and waste. When regional gross disposable income per head of the population increases by 1%, the regional waste per head would decrease by 0.00423 tones. This result is consistent with the scatter plot that there is a weak relationship between income and waste.  
+
+However, the regional effect also needs to be controlled for and is included in the following model.  
+
+```{r, warning=FALSE, echo=FALSE, message=FALSE}
+library(stargazer)
+Reg2 <- plm(WastePc~RecyclingPc+log(IncomePc),data = Data,model = "within",effect = 'twoway' )
+stargazer(Reg2,type="text",digits=10)
+```
+
+
+When both region and year are fixed, the income does not have a significant influence on waste. This result is unexpected as we hypothesized that income would have an impact on the level of waste. It appears that the differences amongst regions in terms of income was impacting the relationship with waste.  
+
+```{r, warning=FALSE, echo=FALSE, message=FALSE}
+
+reg1= lm(formula= IncomePc~factor(Region), Data)
+summary(reg1)
+```
+
+The regression results suggest that there is a significant correlation between income and region for most of the regions. It can be seen from the regression results that the regional income is quite different among 8 regions. London is the region with highest region while north east is the region with lowest region. The correlation between income region may explain the reason for income would become insignificant when both region and year are fixed. 
+
+However, although the income does not have significant influence on waste, the coefficient for recycling changed from -1.296 to -1.2877. This implies a downward bias in the estimate of the coefficient on waste variable, which is the same as we expected.  
+
+Considering the result of the regression the variable income is dropped out from the model. 
+
+Education could also be an important confounding factor. People with educational experience, whether it is higher education or some qualifications, may change their awareness of waste and recycling. Individuals which have further qualifications are likely to study and understand better the environmental impact of waste, developing a stronger sense of social responsibility and seek to reduce their waste. Recycling and education variables may further be correlated as individuals with more environmental awareness may recycle more and waste less. Adding this explanatory variable may reveal a more accurate relationship between recycling and waste. As a result, the education variable may introduce a spurious negative correlation between recycling and waste, which means that our results above underestimate the strength of the relationship between recycling and waste. The figures below illustrate this
+
+[![waste3](DATA/edu_bias.png)]
+
+The graph below indicates the relationship between waste and education and recycling and education. As education may promote recycling and reduce waste, there may be a downward bias if we exclude the “education” variable. By including education, we shut down the education channel to see a more precise estimation of recycling on waste. 
+
+```{r, warning=FALSE, echo=FALSE, message=FALSE}
+#Convert to per capita data
+library(dplyr)
+Education$Edu= as.integer(Education$`Degree or HE`+Education$`Some qualifications`)
+Education$survey= as.integer(Education$`Degree or HE`+Education$`Some qualifications`+Education$`No qualifications`)
+Education$Edu_survey=Education$Edu/ Education$survey
+Percapita <- select(Education,Year,Region,`Degree or HE` ,`Some qualifications`,`No qualifications`,Waste,Recycling,Population,IncomePc,Foreign,Edu,Edu_survey)
+Percapita$Edu_surveyPC <- Education$Edu/ Education$survey
+Percapita$`Degree or HE`=Percapita$`Degree or HE`/Percapita$Population
+Percapita$`Some qualifications`=Percapita$`Some qualifications`/Percapita$Population
+Percapita$`No qualifications`=Percapita$`No qualifications`/Percapita$Population
+Percapita$WastePC=Percapita$Waste/Percapita$Population
+Percapita$RecyclingPC=Percapita$Recycling/Percapita$Population
+Percapita$EduPC=Percapita$Edu/Percapita$Population
+Percapita$ForeignPC=Percapita$Foreign/Percapita$Population
+#Relatinship between education and waste and education and recycling
+library(ggplot2)
+library(RColorBrewer)
+ggplot(Percapita,aes(x=Edu,y=Waste))+geom_point(colour="Darkgrey")+geom_smooth(method = lm, se=FALSE,colour="Darkred")+theme_minimal()+theme_bw()+theme(panel.border = element_blank(), panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+xlab("Education")+ggtitle("Relationship between Waste and Education")
+ggplot(Percapita,aes(x=Edu,y=Recycling))+geom_point(colour="Darkgrey")+geom_smooth(method = lm, se=FALSE,colour="Darkred")+theme_minimal()+theme_bw()+theme(panel.border = element_blank(), panel.grid.major = element_blank(),panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+xlab("Education")+ggtitle("Relationship between Recycling and Education")
+```
+
+The first graph shows a linear relationship between waste and education.  
+The second graph depicts a weak linear relationship between the independent variable recycling and the variable education. The two variables appear to be correlated and including education within the model will also act as a control variable for recycling, allowing for a better estimate of the impact of recycling on waste. To explore the relationship precisely, a regression analysis is conducted. Before this, the correlation coefficients are computed to gain an insight into the strength of the correlation between the variables.  
+
+```{r, warning=FALSE, echo=FALSE, message=FALSE}
+library(plm)
+cor.test(Percapita$Recycling,Percapita$Edu)
+cor.test(Percapita$Waste,Percapita$Edu)
+```
+
+The correlation coefficients show that education is positively correlated with recycling and negatively correlated with waste, which help us elaborate our hypothesis about downward and upward bias. The correlations show that to better solve endogeneity issues; we should include education as a variable.  
+ 
+The regression of waste on recycling and education controlling for the time and regional effects is run below.  
+
+```{r, warning=FALSE, echo=FALSE, message=FALSE}
+#Regress with per capita data
+Reg5=plm(WastePC~RecyclingPC+EduPC+factor(Region)+factor(Year),data=Percapita,index=c("Region","Year"), model = "within",effect = "twoway")
+stargazer(Reg5,type="text")
+```
+
+When adding education, the recycling coefficient slightly increases from -1.2 to -1.3 tons of waste. The education coefficient is significant at the 5% significance level indicating that a 1% increase in individuals with a qualification generates an extra 0.00032 tons of waste. This result is unexpected and suggests that qualifications do not reduce the level of waste. Qualifications may thus not induce a better understanding or more interest in reducing waste as we may have supposed. However, it should also be noted that the data for education comes from an annual survey which does not represent fully the population qualifications level. Creating a new variable called “Edu_survey” looking specifically at the rate of qualifications amongst those which answered the survey may provide a different picture. While this rate is based on a survey and thus may not include unqualified groups such as children providing a key limitation, it will provide some additional insight into the effect of education on waste. The regression with the new variable “Edu_survey” is run subsequently.  
+
+```{r, warning=FALSE, echo=FALSE, message=FALSE}
+Reg6=plm(WastePC~RecyclingPC+Edu_surveyPC+factor(Region)+factor(Year),data=Percapita,index=c("Region","Year"), model = "within",effect = "twoway")
+stargazer(Reg6,type="text")
+```
+The coefficient of Edu_survey is significant at the 10% level, by increasing the rate of qualified people by 1%, waste decreases by 0.00121 tons. The recycling coefficient increases from minus 1.329 to minus 1.282. This method is likely to inflate the number of qualified people, however it helps understand that the true effect of education on waste is likely to lie between the two different coefficients found. For the purpose of the rest of the analysis we will consider the first regression results as the methodology appears as more accurate.
+
+From the previous regressions, education affects the level of waste and it could be argued that education may differ from a region to the next due to the provenance of the population. Regions with more foreign people may induce an upward or downward bias. It may be that some regions have more foreign-born people which are highly educated, and this creates an upward bias, or it may be that in some regions there are more foreigners with lower qualifications, creating a downward bias. As the number of foreigners would likely impact the regional education level, this variable would affect the y variable waste through education, acting as an instrumental variable. By computing a regression of education on foreigners and testing for the linear hypothesis, this ensures that the instrumental variables meet the conditions to be qualified as a strong instrumental variable. 
+
+```{r, warning=FALSE, echo=FALSE, message=FALSE}
+#Using foreign as an instrumental variable
+library(car)
+Reg5=lm(EduPC~ForeignPC,data = Percapita)
+stargazer(Reg5,type="text")
+linearHypothesis(Reg5,c("ForeignPC=0"))
+```
+
+The test is significant at the 1% significance level and the linear hypothesis test F-statistic >10. Therefore, the variable foreign satisfies the conditions to be included as an instrumental variable and is introduced in the subsequent model. 
+
+```{r, warning=FALSE, echo=FALSE, message=FALSE}
+#Including foreign as an instrumental variable
+library(plm)
+Reg7=plm(WastePC~RecyclingPC+EduPC+factor(Year)+factor(Region)|RecyclingPC+ForeignPC,data=Percapita,model = "within",effect = "twoway")
+stargazer(Reg7,type="text")
+```
+
+When adding in the instrumental variable foreign, the education coefficient and the recycling coefficients are not significant, indicating that the number of foreign individuals per capita does not influence the level of waste.   
+
+# Conclusion
+The first regression suggests that the emphasis the UK government has placed on reducing waste through increasing recycling has indeed impacted the level of waste. Recycling appears to be driving down the level of waste for the timeframe studied. Adding in the variable income, which was also considered as a potential driver of waste did not affect waste levels as initially hypothesised. This contrasted the initial intuition that individuals in regions with higher disposable income may waste less. Introducing the variable education, the model remained significant and the impact of recycling on waste decreased. This result was unexpected as intuitively individuals with qualifications could have been considered as more prone to understanding environmental consequences of waste and hence more likely to seek to reduce this. The limitation of the education data employed should be acknowledged and more generalisable data may produce different results. Finally, gathering waste amounts per individual as well as qualification and income level may reveal a different and more accurate relationship and would constitute an interesting future research.  
+
+# Reference List
+Department for Environment, Food & Rural Affairs, 2020. UK statistics on waste. Government statistical service. Available from: https://assets.publishing.service.gov.uk/government/uploads/system/uploads/attachment_data/file/918270/UK_Statistics_on_Waste_statistical_notice_March_2020_accessible_FINAL_updated_size_12.pdf {Accessed 28th November 2020}   
+For overall merged working data see Education.xls   
+For education data see education-data.xls   
+For recycling data see recycling-data.xls   
+For population data see population-data.xls   
+For income data see income-data folder   
